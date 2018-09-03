@@ -1,53 +1,5 @@
-/**
- * LL(1) parser. Building parsing table, part 1: First and Follow sets.
- *
- * NOTICE: see full implementation in the Syntax tool, here:
- * https://github.com/DmitrySoshnikov/syntax/blob/master/src/sets-generator.js
- *
- * by Dmitry Soshnikov <dmitry.soshnikov@gmail.com>
- * MIT Style License
- *
- * An LL(1)-parser is a top-down, fast predictive non-recursive parser,
- * which uses a state-machine parsing table instead of recursive calls
- * to productions as in a recursive descent parser.
- *
- * We described the work of such a parser in:
- * https://gist.github.com/DmitrySoshnikov/29f7a9425cdab69ea68f
- *
- * There we used manually pre-built parsing table. In this diff we implement
- * an automatic solution for generating a parsing table, and consider the
- * first part of it: building First and Follow sets.
- *
- * First and Follow sets are used to determine which next production to use
- * if we have symbol `A` on the stack, and symbol `a` in the buffer.
- *
- * First sets:
- *
- * First sets are everything that stands in the first position in a derivation.
- * If we have a production `A -> aB`, then the symbol `a` is in the first set
- * of `A`, and whenever we have symbol `A` on the stack, and symbol `a` in
- * the buffer, we should use `A -> aB` production. If instead we have a
- * non-terminal on the right hand side, like e.g. in `A -> BC`, then in order
- * to calculate first set of `A`, we should calculate first set of `BC`, and
- * then merge it to `A`.
- *
- * Follow sets:
- *
- * Follow sets are used when a symbol can be `ε` ("empty" symbol known as
- * epsilon). In a productions like: `A -> bXa`, if `X` can be `ε`, then it'll
- * be eliminated, and we still will be able to derive `a` which follows `X`.
- * So we say that `a` is in follow set of `X`.
- *
- * These are the basic rules. We'll cover all the details in the implementation
- * below.
- */
-
 // Special "empty" symbol.
 var EPSILON = "ε";
-
-var firstSets = {};
-var followSets = {};
-
 /**
  * Rules for First Sets
  *
@@ -63,11 +15,11 @@ var followSets = {};
  */
 
 function buildFirstSets(grammar) {
-  firstSets = {};
-  buildSet(firstOf);
+  let firstSets = {};
+  return buildSet(firstOf, grammar, firstSets);
 }
 
-function firstOf(symbol) {
+function firstOf(symbol, firstSets) {
 
   // A set may already be built from some previous analysis
   // of a RHS, so check whether it's already there and don't rebuild.
@@ -84,7 +36,7 @@ function firstOf(symbol) {
     return firstSets[symbol];
   }
 
-  var productionsForSymbol = getProductionsForSymbol(symbol);
+  var productionsForSymbol = getProductionsForSymbol(symbol,grammar);
   for (var k in productionsForSymbol) {
     var production = getRHS(productionsForSymbol[k]);
 
@@ -100,7 +52,7 @@ function firstOf(symbol) {
       // Else, the first is a non-terminal,
       // then first of it goes to first of our symbol
       // (unless it's an epsilon).
-      var firstOfNonTerminal = firstOf(productionSymbol);
+      var firstOfNonTerminal = firstOf(productionSymbol, firstSets);
 
       // If first non-terminal of the RHS production doesn't
       // contain epsilon, then just merge its set with ours.
@@ -134,7 +86,7 @@ function firstOf(symbol) {
  * Given symbol `S`, the function returns `S -> F`,
  * and `S -> (S + F)` productions.
  */
-function getProductionsForSymbol(symbol) {
+function getProductionsForSymbol(symbol,grammar) {
   var productionsForSymbol = {};
   for (var k in grammar) {
     if (grammar[k][0] === symbol) {
@@ -171,8 +123,8 @@ function getRHS(production) {
  */
 
 function buildFollowSets(grammar) {
-  followSets = {};
-  buildSet(followOf);
+  let followSets = {};
+  buildSet(followOf,grammar);
 }
 
 function followOf(symbol) {
@@ -237,10 +189,12 @@ function followOf(symbol) {
   return follow;
 }
 
-function buildSet(builder) {
+function buildSet(builder, grammar, Sets) {
   for (var k in grammar) {
-    builder(grammar[k][0]);
+    builder(grammar[k][0], Sets);
   }
+
+  return Sets;
 }
 
 /**
@@ -305,11 +259,9 @@ var START_SYMBOL = 'S';
 
 printGrammar(grammar);
 
-buildFirstSets(grammar);
-printSet('First sets', firstSets);
+printSet('First sets', buildFirstSets(grammar));
 
-buildFollowSets(grammar);
-printSet('Follow sets', followSets);
+printSet('Follow sets', buildFollowSets(grammar));
 
 // Results:
 
